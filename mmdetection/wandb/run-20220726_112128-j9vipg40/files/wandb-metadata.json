@@ -1,0 +1,31 @@
+{
+    "os": "Linux-5.4.0-122-generic-x86_64-with-glibc2.17",
+    "python": "3.8.13",
+    "heartbeatAt": "2022-07-26T02:21:29.467412",
+    "startedAt": "2022-07-26T02:21:28.334888",
+    "docker": null,
+    "gpu": "NVIDIA GeForce RTX 3090",
+    "gpu_count": 2,
+    "cpu_count": 36,
+    "cuda": null,
+    "args": [
+        "--local_rank=0",
+        "/home/synergy/yhk/MM/mmdetection/custom_config/htcres2net101.py",
+        "--seed",
+        "0",
+        "--launcher",
+        "pytorch"
+    ],
+    "state": "running",
+    "program": "./tools/train.py",
+    "codePath": "tools/train.py",
+    "git": {
+        "remote": "https://github.com/open-mmlab/mmdetection.git",
+        "commit": "56e42e72cdf516bebb676e586f408b98f854d84c"
+    },
+    "email": "ykim102@naver.com",
+    "root": "/home/synergy/yhk/MM/mmdetection",
+    "host": "synergy",
+    "username": "synergy",
+    "executable": "/home/synergy/anaconda3/envs/monai/bin/python"
+}
