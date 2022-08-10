@@ -1,7 +1,7 @@
 # AiFactory.space LG-chem Particle Instance Segmentation Private Challenge
 
 LG-chem private challenge: https://aifactory.space/competition/detail/2067.
-Instance segmentation using mmdetection
+Instance segmentation using mmdetection, 5th out of 176 teams.
 
 ## Run commands
 In the mmdetection directory:
