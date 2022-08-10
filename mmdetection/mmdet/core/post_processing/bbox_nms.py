@@ -4,6 +4,54 @@ from mmcv.ops.nms import batched_nms
 
 from mmdet.core.bbox.iou_calculators import bbox_overlaps
 
+#from kaggle https://www.kaggle.com/code/zzhnku/mmdetection-neuron-inference-nms-improvement/notebook
+def intersect(box_a, box_b):
+
+    n = box_a.size(0)
+    A = box_a.size(1)
+    B = box_b.size(1)
+    max_xy = torch.min(box_a[:, :, 2:].unsqueeze(2).expand(n, A, B, 2),
+                       box_b[:, :, 2:].unsqueeze(1).expand(n, A, B, 2))
+    min_xy = torch.max(box_a[:, :, :2].unsqueeze(2).expand(n, A, B, 2),
+                       box_b[:, :, :2].unsqueeze(1).expand(n, A, B, 2))
+    inter = torch.clamp((max_xy - min_xy), min=0)
+    return inter[:, :, :, 0] * inter[:, :, :, 1]
+
+def diou(box_a, box_b, beta=1.0, iscrowd:bool=False):
+    use_batch = True
+    if box_a.dim() == 2:
+        use_batch = False
+        box_a = box_a[None, ...]
+        box_b = box_b[None, ...]
+
+    inter = intersect(box_a, box_b)
+    area_a = ((box_a[:, :, 2]-box_a[:, :, 0]) *
+              (box_a[:, :, 3]-box_a[:, :, 1])).unsqueeze(2).expand_as(inter)  # [A,B]
+    area_b = ((box_b[:, :, 2]-box_b[:, :, 0]) *
+              (box_b[:, :, 3]-box_b[:, :, 1])).unsqueeze(1).expand_as(inter)  # [A,B]
+    union = area_a + area_b - inter
+    x1 = ((box_a[:, :, 2]+box_a[:, :, 0]) / 2).unsqueeze(2).expand_as(inter)
+    y1 = ((box_a[:, :, 3]+box_a[:, :, 1]) / 2).unsqueeze(2).expand_as(inter)
+    x2 = ((box_b[:, :, 2]+box_b[:, :, 0]) / 2).unsqueeze(1).expand_as(inter)
+    y2 = ((box_b[:, :, 3]+box_b[:, :, 1]) / 2).unsqueeze(1).expand_as(inter)
+
+    t1 = box_a[:, :, 1].unsqueeze(2).expand_as(inter)
+    b1 = box_a[:, :, 3].unsqueeze(2).expand_as(inter)
+    l1 = box_a[:, :, 0].unsqueeze(2).expand_as(inter)
+    r1 = box_a[:, :, 2].unsqueeze(2).expand_as(inter)
+
+    t2 = box_b[:, :, 1].unsqueeze(1).expand_as(inter)
+    b2 = box_b[:, :, 3].unsqueeze(1).expand_as(inter)
+    l2 = box_b[:, :, 0].unsqueeze(1).expand_as(inter)
+    r2 = box_b[:, :, 2].unsqueeze(1).expand_as(inter)
+    cr = torch.max(r1, r2)
+    cl = torch.min(l1, l2)
+    ct = torch.min(t1, t2)
+    cb = torch.max(b1, b2)
+    D = (((x2 - x1)**2 + (y2 - y1)**2) / ((cr-cl)**2 + (cb-ct)**2 + 1e-7))
+    out = inter / area_a if iscrowd else inter / union - D ** beta
+    return out if use_batch else out.squeeze(0)
+
 
 def multiclass_nms(multi_bboxes,
                    multi_scores,
@@ -32,6 +80,9 @@ def multiclass_nms(multi_bboxes,
         tuple: (dets, labels, indices (optional)), tensors of shape (k, 5),
             (k), and (k). Dets are boxes with scores. Labels are 0-based.
     """
+
+    iou_thr = nms_cfg['iou_threshold']
+    print(iou_thr, '/?')
     num_classes = multi_scores.size(1) - 1
     # exclude background category
     if multi_bboxes.shape[1] > 4:
@@ -83,16 +134,53 @@ def multiclass_nms(multi_bboxes,
         else:
             return dets, labels
 
-    dets, keep = batched_nms(bboxes, scores, labels, nms_cfg)
+    # Weighted Cluster-DIoU-NMS
+    scores, idx = scores.sort(0, descending=True)
+    bboxes = bboxes[idx]
+    labels = labels[idx]
+    inds = inds[idx]
+    box = bboxes + labels.unsqueeze(1).expand_as(bboxes)*4000
 
+    diou_matrix = diou(box, box, 0.8)    # DIoU matrix
+    iou = (diou_matrix+0).triu_(diagonal=1) 
+    B = iou
+    for i in range(999):
+        A=B
+        maxA = A.max(dim=0)[0]
+        E = (maxA <= iou_thr).float().unsqueeze(1).expand_as(A)
+        B=iou.mul(E)
+        if A.equal(B)==True:
+            break
+    B=torch.triu(diou_matrix).mul(E)
+    keep = (maxA <= iou_thr)
+    weights = (torch.exp(-(1-(B*(B>0.7).float()))**2 / 0.025)) * (scores.reshape((1,len(scores))))
+    #weights = (B*(B>0.7).float()) * (scores.reshape((1,len(scores))))
+    bboxes = torch.mm(weights, bboxes).float() / weights.sum(1, keepdim=True)
+
+        # Only keep the top max_num highest scores across all classes
     if max_num > 0:
-        dets = dets[:max_num]
-        keep = keep[:max_num]
-
+        scores = scores[keep][:max_num]
+        labels = labels[keep][:max_num]
+        bboxes = bboxes[keep][:max_num]
+    dets = torch.cat([bboxes, scores[:, None]], dim=1)
+    print("wclnms")
     if return_inds:
-        return dets, labels[keep], inds[keep]
+        return dets, labels, inds[keep]
     else:
-        return dets, labels[keep]
+        return dets, labels
+
+
+
+    # dets, keep = batched_nms(bboxes, scores, labels, nms_cfg)
+
+    # if max_num > 0:
+    #     dets = dets[:max_num]
+    #     keep = keep[:max_num]
+
+    # if return_inds:
+    #     return dets, labels[keep], inds[keep]
+    # else:
+    #     return dets, labels[keep]
 
 
 def fast_nms(multi_bboxes,

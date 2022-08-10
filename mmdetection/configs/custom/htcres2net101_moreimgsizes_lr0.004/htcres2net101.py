@@ -215,7 +215,7 @@ model = dict(
             min_bbox_size=0),
         rcnn=dict(
             score_thr=0.001,
-            nms=dict(type='nms', iou_threshold=0.5),
+            nms=dict(type='cluster_nms', iou_method='diou', iou_threshold=0.5),
             max_per_img=100,
             mask_thr_binary=0.5)))
 img_norm_cfg = dict(
@@ -390,7 +390,7 @@ log_config = dict(
 custom_hooks = [dict(type='NumClassCheckHook')]
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = '/home/synergy/yhk/MM/mmdetection/configs/custom/htc_x101_32x4d_fpn_16x1_20e_coco_20200318-de97ae01.pth'
+load_from = '/sda1/yhk/MM/mmdetection/configs/custom/htc_x101_32x4d_fpn_16x1_20e_coco_20200318-de97ae01.pth'
 resume_from = None
 workflow = [('train', 1)]
 opencv_num_threads = 0

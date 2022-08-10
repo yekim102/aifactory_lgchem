@@ -270,7 +270,7 @@ lr_config = dict(
     warmup_iters=500,
     warmup_ratio=0.001,
     step=[8, 11])
-runner = dict(type='EpochBasedRunner', max_epochs=800)
+runner = dict(type='EpochBasedRunner', max_epochs=100)
 checkpoint_config = dict(interval=10, out_dir='work_dirs/lg_mask/')
 log_config = dict(
     interval=10,
@@ -291,7 +291,7 @@ log_config = dict(
 custom_hooks = [dict(type='NumClassCheckHook')]
 dist_params = dict(backend='nccl')
 log_level = 'INFO'
-load_from = '/home/synergy/yhk/MM/mmdetection/checkpoint/mask_rcnn_r50_fpn_1x_coco_20200205-d4b0c5d6.pth'
+load_from = '/sda1/yhk/MM/mmdetection/checkpoint/mask_rcnn_r50_fpn_1x_coco_20200205-d4b0c5d6.pth'
 resume_from = None
 workflow = [('train', 1)]
 opencv_num_threads = 0

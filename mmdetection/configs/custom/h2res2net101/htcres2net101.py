@@ -35,9 +35,9 @@ model = dict(
             target_means=[0.0, 0.0, 0.0, 0.0],
             target_stds=[1.0, 1.0, 1.0, 1.0]),
         loss_cls=dict(
-            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=1.0),
+            type='CrossEntropyLoss', use_sigmoid=True, loss_weight=2.0),
         loss_bbox=dict(
-            type='SmoothL1Loss', beta=0.1111111111111111, loss_weight=1.0)),
+            type='SmoothL1Loss', beta=0.1111111111111111, loss_weight=2.0)),
     roi_head=dict(
         type='HybridTaskCascadeRoIHead',
         interleaved=True,
@@ -210,12 +210,12 @@ model = dict(
         ]),
     test_cfg=dict(
         rpn=dict(
-            nms_pre=1000,
-            max_per_img=1000,
+            nms_pre=2000,
+            max_per_img=2000,
             nms=dict(type='nms', iou_threshold=0.7),
             min_bbox_size=0),
         rcnn=dict(
-            score_thr=0.5,
+            score_thr=0.02,
             nms=dict(type='nms', iou_threshold=0.5),
             max_per_img=100,
             mask_thr_binary=0.5)))
@@ -225,29 +225,33 @@ img_norm_cfg = dict(
 train_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(type='LoadAnnotations', with_bbox=True, with_mask=True),
-    dict(type='Resize', img_scale=[(1333, 1333), (800,800)], keep_ratio=True),
-    dict(type='RandomFlip', flip_ratio=0.5),
     dict(
-        type='Normalize',
-        mean=[123.675, 116.28, 103.53],
-        std=[58.395, 57.12, 57.375],
-        to_rgb=True),
+    type='Normalize',
+    mean=[123.675, 116.28, 103.53],
+    std=[58.395, 57.12, 57.375],
+    to_rgb=True),
     dict(type='Pad', size_divisor=32),
-    dict(
-        type='Albu',
-        transforms=[
-            dict(type='VerticalFlip', p=0.5),
-            dict(type='RandomRotate90', p=0.5)
-        ],
-        bbox_params=dict(
-            type='BboxParams',
-            format='pascal_voc',
-            label_fields=['gt_labels'],
-            min_visibility=0.0,
-            filter_lost_elements=True),
-        keymap={'img': 'image', 'gt_bboxes': 'bboxes', 'gt_masks': 'masks'},
-        update_pad_shape=False,
-        skip_img_without_anno=True),
+    #dict(type='RandomCrop', crop_size=(256, 256), crop_type="absolute"),
+    # dict(
+    # type='Albu',
+    # transforms=[
+    #     dict(type='RandomCrop', height=256, width=256, p=1.0),
+    #     dict(type='VerticalFlip', p=0.5),
+    #     dict(type='RandomRotate90', p=0.5)
+    # ],
+    # bbox_params=dict(
+    #     type='BboxParams',
+    #     format='coco',
+    #     label_fields=['gt_labels'],
+    #     min_visibility=0.0,
+    #     filter_lost_elements=True),
+    # keymap={'img': 'image', 'gt_bboxes': 'bboxes', 'gt_masks': 'masks'},
+    # update_pad_shape=False,
+    # skip_img_without_anno=True),
+    dict(type='Resize', img_scale=[(1600, 1600), (1280,1024)], keep_ratio=True),
+    dict(type='RandomFlip', flip_ratio=0.5),
+
+
     dict(type='DefaultFormatBundle'),
     dict(type='Collect', keys=['img', 'gt_bboxes', 'gt_labels', 'gt_masks'])
 ]
@@ -255,7 +259,7 @@ test_pipeline = [
     dict(type='LoadImageFromFile'),
     dict(
         type='MultiScaleFlipAug',
-        img_scale=[(1333, 1333), (1024, 1024), (800, 800)],
+        img_scale=[(1600, 1600), (1400, 1400), (1280, 1024)],
         flip=True,
         flip_direction=['horizontal', 'vertical'],
         transforms=[
@@ -272,7 +276,7 @@ test_pipeline = [
         ])
 ]
 data = dict(
-    samples_per_gpu=2,
+    samples_per_gpu=1,
     workers_per_gpu=2,
     train=dict(
         type='CocoDataset',
@@ -298,7 +302,7 @@ data = dict(
 evaluation = dict(
     metric=['bbox', 'segm'],
     interval=1)
-optimizer = dict(type='SGD', lr=0.004, momentum=0.9, weight_decay=0.0001)
+optimizer = dict(type='SGD', lr=0.04, momentum=0.9, weight_decay=0.0001)
 optimizer_config = dict(grad_clip=None)
 lr_config = dict(
     policy='step',
@@ -306,8 +310,8 @@ lr_config = dict(
     warmup_iters=500,
     warmup_ratio=0.001,
     step=[8, 11])
-runner = dict(type='EpochBasedRunner', max_epochs=200)
-checkpoint_config = dict(interval=2, out_dir='work_dirs/htcres2net101/')
+runner = dict(type='EpochBasedRunner', max_epochs=20)
+checkpoint_config = dict(interval=1)
 log_config = dict(
     interval=1,
     hooks=[
@@ -316,10 +320,10 @@ log_config = dict(
             type='WandbLoggerHook',
             init_kwargs=dict(
                 project='lgc',
-                name='htcres2net101',
+                name='hr_larger',
                 config=dict(
-                    config='htcres2net101', exp_name='htcres2net101',
-                    lr=0.004),
+                    config='hr_larger', exp_name='hr_larger',
+                    lr=0.04),
                 group='baseline',
                 entity=None))
     ])
@@ -335,11 +339,7 @@ auto_scale_lr = dict(enable=False, base_batch_size=16)
 
 num_classes = 1
 classes = ('Normal', )
-albu_train_transforms = [
-    dict(type='VerticalFlip', p=0.5),
-    dict(type='RandomRotate90', p=0.5)
-]
 holdout = 0
-work_dir = 'configs/custom/h2res2net101_moreimgsizes_lr0.004/'
+work_dir = 'configs/custom/hr_larger/'
 auto_resume = False
 gpu_ids = range(0, 2)
